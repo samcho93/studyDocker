@@ -514,6 +514,14 @@
     sh.eng = D; sh.ct = null; sh.building = true; sh.fast = true;
     sh.osId = (Hub.OS[S.os] || {}).id;
     sh.pkgTarget = S.pkgs;
+    sh.resolveCmd = n => {
+      const fn = Apps.CMDS[n];
+      if (fn && (!fn.tool || S.pkgs.includes('bin:' + fn.tool))) return fn;
+      if ((n === 'python' || n === 'python3') && S.pkgs.includes('bin:python3')) return Apps.CMDS.python;
+      if ((n === 'pip' || n === 'pip3') && S.pkgs.includes('bin:pip')) return Apps.CMDS.pip;
+      if (n === 'sh' || (n === 'bash' && S.pkgs.includes('bin:bash'))) return async c => { const sub = c.sh.fork(); if (c.args[0] === '-c') { try { return await sub.exec(c.args[1] || '', c.io); } catch (e) { return e instanceof Sh.ExitSignal ? e.code : 1; } } return 0; };
+      return null;
+    };
     sh.onPkg = () => {};
     // npm/pip 가 이미지 도구 목록을 보도록
     return sh;

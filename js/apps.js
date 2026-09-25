@@ -1318,6 +1318,29 @@ For more examples and ideas, visit:
     });
   }
 
+  /** 셸 안에서 sh · bash 를 부를 때 (sh -c "..." · 스크립트 · 대화형) */
+  function subShell(n) {
+    return async c => {
+      const sub = c.sh.fork({ name: n === 'bash' || n === 'zsh' ? 'bash' : 'sh' });
+      const a = c.args.filter(x => x !== '-e' && x !== '-x' && x !== '-l' && x !== '-i');
+      const run = async src => { try { return await sub.exec(src, c.io); } catch (e) { if (e instanceof Sh.ExitSignal) return e.code; throw e; } };
+      if (a[0] === '-c') { sub.args = a.slice(2); return run(a[1] || ''); }
+      if (a[0] && !a[0].startsWith('-')) {
+        const src = c.sh.fs.read(c.sh.abs(a[0]));
+        if (src == null) { c.err(`${n}: ${a[0]}: No such file or directory\n`); return 127; }
+        sub.args = a.slice(1); return run(src.replace(/^#!.*\n/, ''));
+      }
+      if (c.stdin) return run(c.stdin);
+      if (!c.io.session) return 0;
+      let code = 0;
+      await c.io.session({
+        prompt: () => sub.prompt, shell: sub,
+        input: async (line, io) => { try { await sub.exec(line, io); } catch (e) { if (e instanceof Sh.ExitSignal) { io.out('exit\n'); code = e.code; return false; } throw e; } return true; }
+      });
+      return code;
+    };
+  }
+
   /** 컨테이너용 셸 만들기 */
   function shell(engine, c, opts) {
     opts = opts || {};
@@ -1347,6 +1370,16 @@ For more examples and ideas, visit:
     const name = opts.name || 'sh';
     const sh = new Sh.Shell({ fs, cmds, user, host: c.hostname, name: name === 'bash' ? 'bash' : 'sh', env, cwd: opts.workdir || c.workdir || '/' });
     if (sh.fs.stat(sh.cwd) !== 'dir') sh.cwd = '/';
+    // apt-get · apk 로 새로 설치한 도구는 바로 쓸 수 있게
+    if (!noShell) sh.resolveCmd = n => {
+      const fn = CMDS[n];
+      if (fn && (!fn.tool || engine.hasTool(c, fn.tool))) return fn;
+      if ((n === 'python' || n === 'python3') && (engine.hasTool(c, 'python3') || engine.hasTool(c, 'python'))) return CMDS.python;
+      if ((n === 'pip' || n === 'pip3') && (engine.hasTool(c, 'pip') || engine.hasTool(c, 'pip3'))) return CMDS.pip;
+      if (SHELLS.includes(n) && engine.hasTool(c, n)) return subShell(n);
+      return null;
+    };
+    SHELLS.forEach(n => { if (!noShell && (engine.hasTool(c, n) || n === 'sh')) cmds[n] = subShell(n); });
     sh.eng = engine; sh.ct = c; sh.osId = o.id; sh.offline = engine.isInternal(c) || !!c.networks.none;
     sh.execs = opts.execs || [];
     sh.args = opts.args || [];

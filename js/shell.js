@@ -403,7 +403,8 @@
 
     async call(argv, io, stdin) {
       const name = argv[0];
-      const fn = this.cmds[name] || this.cmds[base(name)] && name.includes('/') && this.cmds[base(name)];
+      let fn = this.cmds[name] || this.cmds[base(name)] && name.includes('/') && this.cmds[base(name)];
+      if (!fn && this.resolveCmd) { fn = this.resolveCmd(base(name)); if (fn) this.cmds[base(name)] = fn; }
       if (!fn) {
         if (name.includes('/') && this.fs.stat(this.abs(name)) === 'file') {
           const src = this.fs.read(this.abs(name));
