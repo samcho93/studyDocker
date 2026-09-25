@@ -50,7 +50,7 @@
   const RUN_SPEC = {
     'd|detach': 'bool', 'i|interactive': 'bool', 't|tty': 'bool', 'rm': 'bool', 'name': 'str',
     'p|publish': 'list', 'P|publish-all': 'bool', 'e|env': 'list', 'env-file': 'list', 'v|volume': 'list', 'mount': 'list',
-    'network|net': 'str', 'network-alias': 'list', 'restart': 'str', 'm|memory': 'str', 'cpus': 'str', 'w|workdir': 'str',
+    'net|network': 'str', 'network-alias': 'list', 'restart': 'str', 'm|memory': 'str', 'cpus': 'str', 'w|workdir': 'str',
     'u|user': 'str', 'h|hostname': 'str', 'l|label': 'list', 'entrypoint': 'str', 'health-cmd': 'str', 'health-interval': 'str',
     'health-retries': 'str', 'health-timeout': 'str', 'health-start-period': 'str', 'no-healthcheck': 'bool', 'read-only': 'bool', 'init': 'bool',
     'tmpfs': 'list', 'link': 'list', 'cap-add': 'list', 'cap-drop': 'list', 'privileged': 'bool', 'platform': 'str', 'pull': 'str',
@@ -812,7 +812,7 @@ Server:
     // 오래된 것부터 쌓고 뒤집기
     img.layers.forEach(l => entries.push({ id: '<missing>', created: l.created || img.created, by: l.created_by, size: l.size, comment: l.comment || (img.built && l.built ? 'buildkit.dockerfile.v0' : '') }));
     (img.history || []).forEach(h => entries.push({ id: '<missing>', created: h.created || img.created, by: h.created_by, size: 0, comment: h.comment || '' }));
-    if (img.built && img.stepOrder) { entries.length = 0; img.stepOrder.forEach(s => entries.push({ id: '<missing>', created: s.created, by: s.by, size: s.size, comment: s.comment })); }
+    if (img.built && img.stepOrder) { entries.length = 0; img.layers.filter(l => !l.built).forEach(l => entries.push({ id: '<missing>', created: l.created || img.created, by: l.created_by, size: l.size, comment: '' })); (img.baseHistory || []).forEach(h => entries.push({ id: '<missing>', created: h.created || img.created, by: h.created_by, size: 0, comment: '' })); img.stepOrder.forEach(s => entries.push({ id: '<missing>', created: s.created, by: s.by, size: s.size, comment: s.comment })); }
     entries.reverse();
     if (entries.length) entries[0].id = img.id.slice(0, 12);
     const t = [['IMAGE', 'CREATED', 'CREATED BY', 'SIZE', 'COMMENT']];

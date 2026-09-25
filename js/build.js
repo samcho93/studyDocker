@@ -92,7 +92,7 @@
     const quiet = o.quiet;
     const t0 = Date.now();
     const lines = [];     // 진행 표시 줄
-    const out = quiet ? { set() {}, add() {}, done() {} } : progressView(ctx, plain);
+    const out = quiet ? { header() {}, set() {}, add() {}, log() {}, count() { return 0; }, done() {} } : progressView(ctx, plain);
     out.header('[+] Building 0.0s (0/0)');
     if (dfSrc == null) {
       out.add(' => [internal] load build definition from ' + (o.file ? base(o.file) : 'Dockerfile'), '0.0s');
@@ -193,7 +193,7 @@
       const prevStage = stages.findIndex((x, j) => j < i && x.name === st.image);
       if (prevStage >= 0) {
         const r = results[prevStage];
-        S = { fs: new FS(JSON.parse(JSON.stringify(r.fs.toJSON()))), cfg: JSON.parse(JSON.stringify(r.cfg)), pkgs: r.pkgs.slice(), layers: r.layers.slice(), history: r.history.slice(), key: r.key, os: r.os, kind: r.kind, baseRepo: r.baseRepo, owned: r.owned.slice(), users: r.users.slice() };
+        S = { baseHist: r.baseHist, stepOrder: (r.stepOrder || []).slice(), fs: new FS(JSON.parse(JSON.stringify(r.fs.toJSON()))), cfg: JSON.parse(JSON.stringify(r.cfg)), pkgs: r.pkgs.slice(), layers: r.layers.slice(), history: r.history.slice(), key: r.key, os: r.os, kind: r.kind, baseRepo: r.baseRepo, owned: r.owned.slice(), users: r.users.slice() };
         out.add(` => ${tag()} FROM ${st.name ? '' : ''}${st.image}`, '0.0s');
       } else if (st.image === 'scratch') {
         S = { fs: new FS(), cfg: { Env: [] }, pkgs: [], layers: [], history: [], key: U.hash('scratch'), os: 'scratch', kind: 'none', baseRepo: 'scratch', owned: [], users: ['root'] };
@@ -201,7 +201,7 @@
       } else {
         const bi = baseImgs[i];
         const ref = Hub.resolve(st.image);
-        S = { fs: new FS(JSON.parse(JSON.stringify(bi.fs))), cfg: JSON.parse(JSON.stringify(bi.config)), pkgs: (bi.pkgs || []).slice(), layers: bi.layers.slice(), history: (bi.history || []).slice(), key: U.hash('from:' + bi.id), os: bi.os, kind: bi.kind, baseRepo: ref.repo + ':' + ref.tag, owned: (bi.owned || []).slice(), users: ['root'] };
+        S = { baseHist: (bi.history || []).slice(), fs: new FS(JSON.parse(JSON.stringify(bi.fs))), cfg: JSON.parse(JSON.stringify(bi.config)), pkgs: (bi.pkgs || []).slice(), layers: bi.layers.slice(), history: (bi.history || []).slice(), key: U.hash('from:' + bi.id), os: bi.os, kind: bi.kind, baseRepo: ref.repo + ':' + ref.tag, owned: (bi.owned || []).slice(), users: ['root'] };
         const have = D.findImage(st.image) && D.findImage(st.image).id === bi.id;
         const label = `docker.io/${ref.repo.includes('/') ? ref.repo : 'library/' + ref.repo}:${ref.tag}@sha256:${(bi.repoDigests[0] || U.hash(bi.id)).split(':').pop().slice(0, 64)}`;
         if (!have) {
@@ -287,7 +287,7 @@
     const sizeTotal = F.layers.reduce((a, l) => a + l.size, 0);
     let img = D.s.images.find(x => x.id === id);
     if (!img) {
-      img = { id, repoTags: [], repoDigests: [], created: Date.now(), size: sizeTotal, os: F.os, osName: (Hub.OS[F.os] || {}).name, kind: F.kind === 'none' ? 'shell' : F.kind, layers: F.layers, history: F.history, config: F.cfg, fs: F.fs.toJSON(), pkgs: Array.from(new Set(F.pkgs)), arch: (o.platform || '').includes('arm64') ? 'arm64' : 'amd64', built: true, baseRepo: F.baseRepo, owned: F.owned, users: F.users, stepOrder: F.stepOrder };
+      img = { id, repoTags: [], repoDigests: [], created: Date.now(), size: sizeTotal, os: F.os, osName: (Hub.OS[F.os] || {}).name, kind: F.kind === 'none' ? 'shell' : F.kind, layers: F.layers, history: F.history, config: F.cfg, fs: F.fs.toJSON(), pkgs: Array.from(new Set(F.pkgs)), arch: (o.platform || '').includes('arm64') ? 'arm64' : 'amd64', built: true, baseHistory: F.baseHist || [], baseRepo: F.baseRepo, owned: F.owned, users: F.users, stepOrder: F.stepOrder };
       D.s.images.push(img);
     } else img.created = Date.now();
     if (o.tag.length) o.tag.forEach(t => D.tagImage(id, t));

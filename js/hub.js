@@ -391,7 +391,7 @@ Commercial support is available at
       site: def.site,
       web: def.web,
       layers: layers.map(l => Object.assign({ created: created - 3600000 }, l)),
-      history: meta.map(m => ({ created_by: m, size: 0, empty: true })),
+      history: meta.map(m => ({ created_by: m, size: 0, empty: true, created })),
       config: cfg,
       fs: fsd,
       pkgs: tools.map(t => 'bin:' + t),

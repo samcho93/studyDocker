@@ -74,7 +74,14 @@
       if (parts.length > 1 && ctx.lang === 'py') { const t = []; for (const p of parts) t.push(await evalExpr(p, ctx)); t.tuple = true; return t; }
       return evalExpr(inner, ctx);
     }
-    // 삼항 (JS) — 간단히
+    // 순수 산술식
+    if (/^[\d\s+\-*/().%]+$/.test(s) && /\d/.test(s)) {
+      try {
+        const floorDiv = s.includes('//');
+        const v = Function('"use strict";return (' + s.replace(/\/\//g, '/') + ')')();
+        if (typeof v === 'number' && isFinite(v)) return floorDiv ? Math.floor(v) : v;
+      } catch (_) {}
+    }
     // 논리 연산
     const orParts = splitTop(s, ctx.lang === 'py' ? ' or ' : '||');
     if (orParts.length > 1) { for (const p of orParts) { const v = await evalExpr(p, ctx); if (v) return v; } return evalExpr(orParts[orParts.length - 1], ctx); }
@@ -98,7 +105,7 @@
     }
     // 더하기 · 빼기
     const plus = splitTop(s, '+').filter((x, i, arr) => !(x.trim() === '' && i < arr.length - 1));
-    if (plus.length > 1 && !/^[+-]?\d/.test(s.trim()) || plus.length > 2) {
+    if (plus.length > 1 && plus.every(x => x.trim())) {
       const vals = []; for (const p of plus) vals.push(await evalExpr(p, ctx));
       if (vals.every(v => typeof v === 'number')) return vals.reduce((a, b) => a + b, 0);
       if (ctx.lang === 'py' && vals.some(v => typeof v === 'number') && vals.some(v => typeof v === 'string')) throw new PyError('TypeError', 'can only concatenate str (not "int") to str');
@@ -267,7 +274,7 @@
     }
     checkImports() {
       const mods = new Set();
-      this.src.replace(/^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.,\s]+))/gm, (_, a, b) => { (a ? [a] : b.split(',')).forEach(x => mods.add(x.trim().split(/\s+as\s+/)[0].split('.')[0])); });
+      this.src.replace(/^[ \t]*(?:from[ \t]+([\w.]+)[ \t]+import|import[ \t]+([\w., \t]+))/gm, (_, a, b) => { (a ? [a] : b.split(',')).forEach(x => mods.add(x.trim().split(/\s+as\s+/)[0].split('.')[0])); });
       for (const m of mods) {
         if (!m || PY_STD.has(m)) continue;
         if (!this.rt.pkgs.has('py:' + m.toLowerCase())) return m;
@@ -281,8 +288,8 @@
     async run() {
       const missing = this.checkImports();
       if (missing) {
-        const ln = this.src.split('\n').findIndex(l => new RegExp('^\\s*(from|import)\\s+' + missing + '\\b').test(l)) + 1;
-        this.rt.err(`Traceback (most recent call last):\n  File "${this.rt.file}", line ${ln}, in <module>\n    ${this.src.split('\n')[ln - 1].trim()}\nModuleNotFoundError: No module named '${missing}'\n`);
+        const ln = Math.max(1, this.src.split('\n').findIndex(l => new RegExp('^\\s*(from|import)\\s+([\\w.]+,\\s*)*' + missing + '\\b').test(l)) + 1);
+        this.rt.err(`Traceback (most recent call last):\n  File "${this.rt.file}", line ${ln}, in <module>\n    ${(this.src.split('\n')[ln - 1] || '').trim()}\nModuleNotFoundError: No module named '${missing}'\n`);
         return 1;
       }
       try {
