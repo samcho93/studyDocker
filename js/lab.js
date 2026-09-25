@@ -388,34 +388,7 @@
       this.renderMissions();
       this.checkSoon();
     },
-    M() {
-      const find = n => D.findContainer(n);
-      const M = {
-        D, Host,
-        c: find,
-        exists: n => !!find(n),
-        running: n => { const c = find(n); return !!c && c.state.status === 'running'; },
-        status: n => { const c = find(n); return c ? c.state.status : null; },
-        cs: f => D.s.containers.filter(f || (() => true)),
-        image: r => D.findImage(r),
-        images: () => D.s.images,
-        vol: n => D.volume(n),
-        net: n => D.network(n),
-        port: p => { const c = D.hostPortOwner(p); return c && c.state.status === 'running' ? c : null; },
-        connected: (n, net) => { const c = find(n); return !!c && !!c.networks[net]; },
-        mount: (n, target) => { const c = find(n); return c ? c.hostConfig.mounts.find(m => m.target === target) || null : null; },
-        env: (n, k) => { const c = find(n); return c ? D.envOf(c)[k] : undefined; },
-        health: n => { const c = find(n); return c && c.health ? c.health.status : null; },
-        file: p => Host.fs.read(VFS.norm(p.replace(/^~/, HOME))),
-        cfile: (n, p) => { const c = find(n); return c ? Apps.fsFor(D, c, 'root').read(p) : null; },
-        ran: re => this.cmdLog.some(x => re.test(x.c)),
-        ranSince: (re, t) => this.cmdLog.some(x => x.t >= t && re.test(x.c)),
-        get: async url => { const r = await D.http(null, url); return r.error ? '' : String(r.body || ''); },
-        kube: window.Kube ? Kube : null,
-        logs: n => { const c = find(n); return c ? c.logs.map(l => l.m).join('\n') : ''; }
-      };
-      return M;
-    },
+    M() { return MissionHelpers(D, () => this.cmdLog); },
     checkSoon() { clearTimeout(this._ct); this._ct = setTimeout(() => this.check(), 250); },
     async check() {
       const key = this.missionKey; if (!key) return;
