@@ -522,7 +522,7 @@ Server:
   /* ---------- ps ---------- */
   cmds.ps = async (ctx, args) => {
     const { o } = parseOpts(args, { 'a|all': 'bool', 'q|quiet': 'bool', 'f|filter': 'list', 'format': 'str', 'no-trunc': 'bool', 'l|latest': 'bool', 'n|last': 'str', 's|size': 'bool' });
-    let list = ctx.D.s.containers.slice().reverse();
+    let list = ctx.D.s.containers.filter(c => !c.kube).reverse();
     if (!o.all) list = list.filter(c => ['running', 'paused', 'restarting'].includes(c.state.status));
     o.filter.forEach(f => {
       const [k, v] = f.split('=');

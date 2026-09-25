@@ -698,7 +698,7 @@
       // 링크(--link) 흉내
       if (from.links && from.links[host]) { const t = this.findContainer(from.links[host]); if (t && t.state.status === 'running') return { c: t }; }
       // 쿠버네티스 서비스
-      if (this.kube && this.kube.resolve) { const k = this.kube.resolve(host); if (k) return k; }
+      if (this.kube && this.kube.resolve) { const k = this.kube.resolve(host, from); if (k) return k; }
       return { error: `Could not resolve host: ${host}`, code: 6, nxdomain: true };
     }
 
