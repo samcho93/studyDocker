@@ -920,7 +920,7 @@ Server:
     const sub = args[0], rest = args.slice(1);
     if (sub === 'ls' || sub === 'list') {
       const { o } = parseOpts(rest, { 'q|quiet': 'bool', 'f|filter': 'list', 'format': 'str', 'no-trunc': 'bool' });
-      let nets = D.s.networks.slice();
+      let nets = D.s.networks.filter(n => n.name !== 'kube-pods');
       o.filter.forEach(f => { const [k, v] = f.split('='); if (k === 'name') nets = nets.filter(n => n.name.includes(v)); if (k === 'driver') nets = nets.filter(n => n.driver === v); });
       if (o.quiet) { nets.forEach(n => ctx.out(n.id.slice(0, 12) + '\n')); return 0; }
       const t = [['NETWORK ID', 'NAME', 'DRIVER', 'SCOPE']];

@@ -223,3 +223,6 @@ code.cmd::after { content: ' ▶'; font-size: .75em; color: var(--accent); }
 .dash .stats { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
 .dash .stats > .stat { padding: 8px 6px; }
 .dash .stats > .stat b { font-size: 21px; }
+.terms.nowrap .term { overflow-x: auto; }
+.terms.nowrap .term .screen { white-space: pre; word-break: normal; }
+.term-tabs .tbtn.off { color: #e3b341; }

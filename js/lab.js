@@ -76,8 +76,11 @@
     /* ================================================================ 터미널 */
     initTerm() {
       const p = $('#paneTerm');
-      p.innerHTML = `<div class="term-tabs"><span id="termTabs"></span><button class="tbtn" id="termAdd" title="새 터미널">＋</button><span class="spacer"></span><button class="tbtn" id="termClear" title="화면 지우기 (Ctrl+L)">지우기</button><button class="tbtn" id="termStop" title="실행 중인 명령 멈추기 (Ctrl+C)">■ Ctrl+C</button></div><div class="terms" id="terms"></div><div class="term-bar" id="termBar"></div>`;
+      p.innerHTML = `<div class="term-tabs"><span id="termTabs"></span><button class="tbtn" id="termAdd" title="새 터미널">＋</button><span class="spacer"></span><button class="tbtn" id="termWrap" title="긴 줄 접기/펼치기 (표가 깨져 보일 때)">↔ 줄바꿈</button><button class="tbtn" id="termClear" title="화면 지우기 (Ctrl+L)">지우기</button><button class="tbtn" id="termStop" title="실행 중인 명령 멈추기 (Ctrl+C)">■ Ctrl+C</button></div><div class="terms" id="terms"></div><div class="term-bar" id="termBar"></div>`;
       $('#termAdd').onclick = () => this.addTerm(true);
+      const setWrap = on => { $('#terms').classList.toggle('nowrap', !on); $('#termWrap').classList.toggle('off', !on); U.store.set('termWrap', on); };
+      setWrap(U.store.get('termWrap', true));
+      $('#termWrap').onclick = () => { setWrap($('#terms').classList.contains('nowrap')); if (this.active) this.active.focus(); };
       $('#termClear').onclick = () => { if (this.active) { this.active.clear(); this.active.focus(); } };
       $('#termStop').onclick = () => { if (this.active) { this.active.interrupt(); this.active.focus(); } };
       const t = this.addTerm(false);
