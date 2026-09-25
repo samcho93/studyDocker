@@ -119,12 +119,14 @@
       opts = opts || {};
       this.open('term');
       let t = this.active;
-      if (opts.newTerm || (t.running && !t.sessions.length && opts.parallel)) t = this.addTerm(false);
-      else if (t.running && !t.sessions.length) {
-        // 오래 도는 명령(logs -f 등)이 있으면 새 탭에서
-        const idle = this.terms.find(x => !x.running);
+      const atHost = x => x.state === 'idle' && !x.running && !x.queue.length;
+      if (opts.newTerm) t = this.addTerm(false);
+      else if (!atHost(t) && !(opts.inSession && t.sessions.length)) {
+        // 오래 도는 명령(logs -f 등)이 돌거나 컨테이너 안(셸 세션)에 있으면 → 호스트 프롬프트인 다른 탭에서
+        const idle = this.terms.find(atHost);
         t = idle || this.addTerm(false);
         this.activate(t);
+        if (!idle) t.write('\x1b[2m(다른 터미널이 사용 중이라 새 탭에서 실행합니다)\x1b[0m\n');
       }
       setTimeout(() => t.focus(), 30);
       return t.run(cmds);
