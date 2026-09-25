@@ -110,7 +110,8 @@
       if (s == null) throw new Error(`open ${f}: no such file or directory`);
       s.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#')).forEach(l => env.push(l.includes('=') ? l : `${l}=${ctx.env[l] || ''}`));
     });
-    o.env.forEach(e => env.push(e.includes('=') ? e : `${e}=${ctx.env[e] != null ? ctx.env[e] : ''}`));
+    o.env.forEach(e => { if (e.includes('=')) env.push(e); else if (ctx.env[e] != null) env.push(`${e}=${ctx.env[e]}`); });
+    if (o.rm && o.restart && o.restart !== 'no') throw new Error(`Conflicting options: --restart and --rm`);
     const mounts = o.volume.map(v => parseVolume(v, ctx.cwd)).concat(o.mount.map(m => parseMount(m, ctx.cwd)), o.tmpfs.map(t => ({ type: 'tmpfs', source: '', target: t.split(':')[0] })));
     for (const m of mounts) {
       if (m.type === 'bind' && !Host.fs.stat(m.source)) {
@@ -1149,7 +1150,7 @@ Server:
   cmds.context = async (ctx, args) => { if (args[0] === 'ls') { ctx.out(table([['NAME', 'DESCRIPTION', 'DOCKER ENDPOINT', 'ERROR'], ['default *', 'Current DOCKER_HOST based configuration', 'unix:///var/run/docker.sock', '']]) + '\n'); return 0; } ctx.out('Usage:  docker context COMMAND\n'); return 0; };
   cmds.buildx = async (ctx, args) => {
     if (args[0] === 'ls') { ctx.out(table([['NAME/NODE', 'DRIVER/ENDPOINT', 'STATUS', 'BUILDKIT', 'PLATFORMS'], ['default*', 'docker', '', '', ''], [' \\_ default', ' \\_ default', 'running', 'v0.17.3', 'linux/amd64, linux/amd64/v2, linux/amd64/v3, linux/arm64, linux/riscv64, linux/ppc64le, linux/s390x, linux/386, linux/arm/v7, linux/arm/v6']]) + '\n'); return 0; }
-    if (args[0] === 'build') return cmds.build(ctx, args.slice(1));
+    if (args[0] === 'build') return Builder.build(ctx, args.slice(1));
     if (args[0] === 'version') { ctx.out('github.com/docker/buildx v0.19.2 1fc5647\n'); return 0; }
     if (args[0] === 'create') { ctx.out((args.find(a => a.startsWith('--name=')) || '--name=builder').slice(7) + '\n'); return 0; }
     if (args[0] === 'use' || args[0] === 'inspect') return 0;

@@ -352,7 +352,7 @@
               chain.push({ cond: mm ? mm[1] : null, body: blocks[i].kids });
             }
             for (const br of chain) {
-              if (br.cond == null || (/__name__\s*==\s*['"]__main__['"]/.test(br.cond) ? true : await this.evalIn(br.cond, scope))) {
+              if (br.cond == null || (/__name__\s*==\s*['"]__main__['"]/.test(br.cond) ? this.globals.__name__ === '__main__' : await this.evalIn(br.cond, scope))) {
                 const r = await this.exec(br.body, scope); if (r) return r; break;
               }
             }
@@ -754,7 +754,8 @@
     const routes = [];
     src.replace(/HandleFunc\(\s*"([^"]+)"\s*,\s*func\s*\(\s*w\s+http\.ResponseWriter[^)]*\)\s*\{([\s\S]*?)\n\s*\}\)/g, (_, p, body) => {
       const f = body.match(/Fprint(?:f|ln)?\(\s*w\s*,\s*("(?:\\.|[^"])*"|`[^`]*`)/);
-      routes.push({ path: p, text: f ? JSON.parse(f[1].startsWith('`') ? JSON.stringify(f[1].slice(1, -1)) : f[1]).replace(/%s|%v|%d/g, '?') : '' });
+      let tx = ''; try { tx = f ? JSON.parse(f[1].startsWith('`') ? JSON.stringify(f[1].slice(1, -1)) : f[1].replace(/\n/g, '\\n')).replace(/%s|%v|%d/g, '?') : ''; } catch (_) { tx = f ? f[1].slice(1, -1) : ''; }
+      routes.push({ path: p, text: tx });
     });
     const prints = []; src.replace(/fmt\.Print(?:ln|f)?\(\s*("(?:\\.|[^"])*")/g, (_, s) => { try { prints.push(JSON.parse(s).replace(/%s|%v|%d/g, '?')); } catch (_) {} });
     const logs = []; src.replace(/log\.Print(?:ln|f)?\(\s*("(?:\\.|[^"])*")/g, (_, s) => { try { logs.push(JSON.parse(s).replace(/%s|%v|%d/g, port || '?')); } catch (_) {} });

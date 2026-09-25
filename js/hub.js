@@ -255,6 +255,7 @@
     if (kind === 'node') { f['/usr/local/bin/node'] = '(binary)'; f['/usr/local/bin/docker-entrypoint.sh'] = '#!/bin/sh\nset -e\nexec "$@"\n'; }
     if (kind === 'registry') f['/etc/docker/registry/config.yml'] = 'version: 0.1\nstorage:\n  filesystem:\n    rootdirectory: /var/lib/registry\nhttp:\n  addr: :5000\n';
     if (kind === 'whoami') f['/whoami'] = '(binary)';
+    if (kind === 'web' && meta && meta.cfg && meta.cfg.Entrypoint) f[meta.cfg.Entrypoint[0]] = '(binary)';
     if (repo === 'prom/prometheus') f['/etc/prometheus/prometheus.yml'] = 'global:\n  scrape_interval: 15s\nscrape_configs:\n  - job_name: "prometheus"\n    static_configs:\n      - targets: ["localhost:9090"]\n';
     return f;
   }

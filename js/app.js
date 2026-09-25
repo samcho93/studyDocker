@@ -233,7 +233,7 @@
       $('#prevBtn').disabled = i <= 0; $('#nextBtn').disabled = i < 0 || i >= order.length - 1;
       document.title = (o && target !== 'home' ? o.title + ' · ' : '') + 'Docker 쉽게 배우기';
       // 실습 화면 연결: 미션 · 빠른 명령
-      if (l && l.missions) Lab.setMissions(target, l.missions, `${l.no ? l.no + '장 ' : ''}${l.title}`);
+      if (l && l.missions) Lab.setMissions(target, l.missions, `${l.no ? l.no + '장 ' : ''}${l.title}`, l.files);
       else if (!(l && l.keepMissions)) Lab.setMissions(null, [], '');
       Lab.setChips(l && l.chips ? l.chips : ['docker ps -a', 'docker images', 'docker network ls', 'docker volume ls', 'help']);
       markMissionList();

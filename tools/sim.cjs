@@ -3,6 +3,8 @@ const { load } = require('./harness.cjs');
 load('util.js', 'vfs.js', 'shell.js', 'hub.js', 'engine.js', 'apps-db.js', 'apps-code.js', 'apps.js', 'yaml.js', 'docker-cli.js', 'build.js', 'compose.js', 'host.js');
 try { load('kube.js'); } catch (e) {}
 global.Docker = { engine: new Engine() };
+if (global.Kube) Kube.init(Docker.engine);
+load('missions.js');
 Host.load();
 const sh = HostShell.make();
 const strip = s => s.replace(/\x1b\[[\d;]*m/g, '');

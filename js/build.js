@@ -233,7 +233,7 @@
             contentKey = srcs.map(sp => Object.keys(ctxF.files).filter(f => matchSrc(sp, f)).map(f => f + ':' + U.hash(ctxF.files[f], 12)).join(',')).join('|');
           } else { const r = results[stages.findIndex(x => x.name === fromM[1] || String(x.idx) === fromM[1])]; contentKey = r ? r.key : fromM[1]; }
         }
-        const key = U.hash(S.key + '|' + stepText + '|' + (ins === 'RUN' || ins === 'COPY' || ins === 'ADD' ? JSON.stringify(Object.entries(vars).filter(([kk]) => argsRaw.includes(kk))) : '') + '|' + contentKey + '|' + (S.cfg.WorkingDir || '') + '|' + (S.user || ''));
+        const key = U.hash(S.key + '|' + JSON.stringify(ctx.buildArgs || {}) + '|' + stepText + '|' + (ins === 'RUN' || ins === 'COPY' || ins === 'ADD' ? JSON.stringify(Object.entries(vars).filter(([kk]) => argsRaw.includes(kk))) : '') + '|' + contentKey + '|' + (S.cfg.WorkingDir || '') + '|' + (S.user || ''));
         const cached = !o['no-cache'] && cache[key];
         const display = ` => ${cached && ['RUN', 'COPY', 'ADD', 'WORKDIR'].includes(ins) ? 'CACHED ' : ''}${['RUN', 'COPY', 'ADD', 'WORKDIR'].includes(ins) ? tag() + ' ' : ''}${stepText.length > 90 ? stepText.slice(0, 89) + '…' : stepText}`;
         if ((ins === 'COPY' || ins === 'ADD') && !/--from=/.test(argsRaw) && !ctxLoaded) {
@@ -314,7 +314,7 @@
     Object.keys(S.fs.files).forEach(f => { if (b.files[f] !== S.fs.files[f]) files[f] = S.fs.files[f]; });
     Object.keys(b.files).forEach(f => { if (!(f in S.fs.files)) del.push(f); });
     const dirs = Array.from(S.fs.dirs).filter(d => !b.dirs.has(d));
-    return { files, del, dirs, cfg: S.cfg, pkgs: S.pkgs.filter(p => !b.pkgs.includes(p)), layers: S.layers.slice(b.layersN), history: S.history.slice(b.historyN), owned: S.owned.filter(x => !b.owned.includes(x)), users: S.users.filter(x => !b.users.includes(x)), args: S.args, user: S.user, steps: (S.stepOrder || []).slice(b.stepsN) };
+    return { files, del, dirs, cfg: JSON.parse(JSON.stringify(S.cfg)), pkgs: S.pkgs.filter(p => !b.pkgs.includes(p)), layers: S.layers.slice(b.layersN), history: S.history.slice(b.historyN), owned: S.owned.filter(x => !b.owned.includes(x)), users: S.users.filter(x => !b.users.includes(x)), args: Object.assign({}, S.args), user: S.user, steps: (S.stepOrder || []).slice(b.stepsN) };
   }
   function applyCached(S, d) {
     Object.entries(d.files || {}).forEach(([f, v]) => S.fs.write(f, v));
@@ -346,7 +346,7 @@
         kvPairs(a).forEach(([k, v]) => { v = subst(v, vars); vars[k] = v; const i = S.cfg.Env.findIndex(e => e.split('=')[0] === k); if (i >= 0) S.cfg.Env[i] = `${k}=${v}`; else S.cfg.Env.push(`${k}=${v}`); });
         meta(`ENV ${subst(a, vars)}`); return;
       }
-      case 'LABEL': S.cfg.Labels = S.cfg.Labels || {}; kvPairs(a).forEach(([k, v]) => { S.cfg.Labels[k.replace(/^"|"$/g, '')] = v; }); meta(`LABEL ${a}`); return;
+      case 'LABEL': S.cfg.Labels = S.cfg.Labels || {}; kvPairs(a).forEach(([k, v]) => { S.cfg.Labels[k.replace(/^"|"$/g, '')] = subst(v, vars); }); meta(`LABEL ${subst(a, vars)}`); return;
       case 'MAINTAINER': meta(`MAINTAINER ${a}`); return;
       case 'EXPOSE': S.cfg.ExposedPorts = Array.from(new Set((S.cfg.ExposedPorts || []).concat(splitArgs(subst(a, vars)).map(p => p.includes('/') ? p : p + '/tcp')))); meta(`EXPOSE map[${S.cfg.ExposedPorts.map(p => p + ':{}').join(' ')}]`); return;
       case 'VOLUME': { const j = jsonArr(a); S.cfg.Volumes = Array.from(new Set((S.cfg.Volumes || []).concat(j && j !== 'bad' ? j : splitArgs(a)))); meta(`VOLUME [${S.cfg.Volumes.join(' ')}]`); return; }
@@ -450,6 +450,7 @@
         const script = subst(j && j !== 'bad' ? j.join(' ') : a.replace(/--mount=\S+\s*/g, ''), Object.assign({}, vars));
         const user = S.user || 'root';
         const sh = buildShell(D, S, user, vars);
+        sh.aptUpdated = !!S.aptUpdated;
         let log = '';
         const io = { out: t => { log += t; if (plainOut) plainOut.log(t); }, err: t => { log += t; if (plainOut) plainOut.log(t); }, signal: ctx.io.signal };
         const pk0 = S.pkgs.slice();
@@ -458,6 +459,7 @@
         if (bin) return { ok: false, error: `process "/bin/sh -c ${script}" did not complete successfully: exit code: 127\n(힌트) ${S.os} 이미지에는 셸(/bin/sh)이 없어서 RUN 을 쓸 수 없습니다. 멀티 스테이지로 다른 이미지에서 만든 결과만 COPY --from 으로 가져오세요.` };
         let code;
         try { code = await sh.exec(script, io); } catch (e) { code = e instanceof Sh.ExitSignal ? e.code : 1; if (!(e instanceof Sh.ExitSignal)) log += e.message + '\n'; }
+        S.aptUpdated = !!sh.aptUpdated && !/rm -rf \/var\/lib\/apt\/lists/.test(script);
         if (code !== 0) return { ok: false, log, error: `process "/bin/sh -c ${script}" did not complete successfully: exit code: ${code}` };
         // 크기 계산
         const newPk = S.pkgs.filter(p => !pk0.includes(p));

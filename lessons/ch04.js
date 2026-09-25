@@ -46,7 +46,6 @@ Course.lesson({
   <line x1="630" y1="214" x2="630" y2="250" class="ln-teal thick"/>
   <text x="242" y="236" class="t-xs t-mono t-green">veth</text>
   <text x="642" y="236" class="t-xs t-mono t-teal">veth</text>
-  <line x1="230" y1="192" x2="630" y2="192" class="ln moving thin"/>
   <text x="36" y="150" class="t-xs t-mu">🔒 각 컨테이너의 127.0.0.1 은 자기 자신만 가리킵니다</text>
 </svg>`
     },
@@ -346,9 +345,18 @@ curl localhost:9090</code></pre>
 <tr><td><code>127.0.0.1:5000</code></td><td>컨테이너 <b>자기 자신</b>이 보낸 요청만 받음</td><td>❌ 거부 (요청은 eth0 172.17.0.x 로 들어오므로)</td></tr>
 <tr><td><code>0.0.0.0:5000</code></td><td>컨테이너의 <b>모든 주소</b>로 오는 요청을 받음</td><td>✅ 받음</td></tr>
 </table>
-<p>Flask 의 <code>app.run()</code> 은 기본값이 <code>127.0.0.1</code> 입니다. 직접 확인해 봅시다. 아래 버튼으로 실습 파일을 만든 뒤
+<p>Flask 의 <code>app.run()</code> 은 기본값이 <code>127.0.0.1</code> 입니다. 직접 확인해 봅시다. 아래 코드를 <b>📄 파일로 저장</b>한 뒤
 폴더를 컨테이너에 연결(<code>-v</code>, 5장에서 자세히 배웁니다)해서 실행합니다.</p>
-{{widget:files|set=hello|cd=~/hello}}
+<pre class="code" data-lang="python" data-file="~/hello/app.py"><code>from flask import Flask
+
+app = Flask(__name__)
+
+@app.route("/")
+def hi():
+    return "Hello from Flask!"
+
+if __name__ == "__main__":
+    app.run(port=5000)</code></pre>
 <pre class="code" data-lang="bash" data-run="sh"><code>docker run -d --name hello -p 5000:5000 -v ~/hello:/app -w /app python:3.12 sh -c "pip install flask &amp;&amp; python app.py"
 sleep 3
 docker logs --tail 3 hello
@@ -360,13 +368,23 @@ Press CTRL+C to quit
 curl: (56) Recv failure: Connection reset by peer
 Hello from Flask!</code></pre>
 <p>로그의 <code>Running on http://<b>127.0.0.1</b>:5000</code> 이 결정적 단서입니다. <b>컨테이너 안에서는 되는데(Hello), 호스트에서는 안 되는</b> 전형적인 모습이죠.
-📝 파일 탭에서 <code>~/hello/app.py</code> 의 마지막 줄을 아래처럼 고치고 컨테이너를 재시작해 보세요.</p>
-<pre class="code" data-lang="python"><code>    app.run(host="0.0.0.0", port=5000)</code></pre>
+📝 파일 탭에서 <code>~/hello/app.py</code> 의 마지막 줄을 <code>app.run(<span class="hl">host="0.0.0.0"</span>, port=5000)</code> 으로 고치거나,
+아래 블록을 <b>📄 파일로 저장</b>해 덮어쓴 뒤 컨테이너를 재시작해 보세요. 폴더가 연결되어 있어서 재시작만 하면 고친 코드가 실행됩니다.</p>
+<pre class="code" data-lang="python" data-file="~/hello/app.py"><code>from flask import Flask
+
+app = Flask(__name__)
+
+@app.route("/")
+def hi():
+    return "Hello from Flask!"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)</code></pre>
 <pre class="code" data-lang="bash" data-run="sh"><code>docker restart hello
 sleep 3
 docker logs --tail 3 hello
 curl -s localhost:5000</code></pre>
-<p>로그가 <code>Running on all addresses (0.0.0.0)</code> 로 바뀌고 호스트에서도 <code>Hello from Flask!</code> 가 나오면 성공입니다.
+<p>로그에 <code>Running on http://172.17.0.x:5000</code>(컨테이너 eth0 주소) 줄이 새로 보이고, 호스트에서도 <code>Hello from Flask!</code> 가 나오면 성공입니다.
 (이 장의 🎯 미션에도 같은 상황이 나옵니다.)</p>
 
 <div class="box dev"><div class="box-t">👩‍💻 실무 관점 — 프레임워크별 "0.0.0.0" 쓰는 법</div>
@@ -730,7 +748,7 @@ docker network ls</code></pre>
       id: 'm8', scenario: true,
       title: '🚨 port is already allocated — 블로그를 함께 띄우기',
       desc: '⚙️ 상황 만들기를 누르면 Apache 웹 서버 <code>blog</code>(httpd:2.4)를 <code>-p 8080:80</code> 으로 실행하려다 <b>포트 충돌</b>로 실패합니다 (m1 의 web 이 8080 을 쓰는 중). <b>web 은 그대로 둔 채</b> blog 를 호스트 <b>8082</b> 포트로 띄우세요.',
-      setup: ['docker run -d --name web -p 8080:80 nginx', 'docker run -d --name blog -p 8080:80 httpd:2.4'],
+      setup: ['docker rm -f web blog', 'docker run -d --name web -p 8080:80 nginx', 'docker run -d --name blog -p 8080:80 httpd:2.4'],
       hint: '실패한 blog 는 <code>Created</code> 상태로 남아 있어 이름이 겹칩니다. <code>docker rm blog</code> 후 <code>-p 8082:80</code> 으로 다시 실행하세요.',
       answer: ['docker rm blog', 'docker run -d --name blog -p 8082:80 httpd:2.4'],
       check: M => M.running('web') && M.port(8080) === M.c('web') && M.running('blog') && M.port(8082) === M.c('blog')

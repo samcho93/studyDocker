@@ -227,6 +227,8 @@
     }
     if ((m = s.match(/^(?:describe|desc) ([`\w]+)$/i))) { const t = table(m[1]); if (!t) return { error: `ERROR 1146 (42S02): Table '${ctx.db}.${m[1]}' doesn't exist` }; return { cols: ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'], rows: t.cols.map(c => [c.name, c.type, 'YES', c.auto ? 'PRI' : '', 'NULL', c.auto ? 'auto_increment' : '']) }; }
     if (/^(begin|commit|rollback|start transaction)$/i.test(s)) return { msg: my ? 'Query OK, 0 rows affected (0.00 sec)' : s.toUpperCase() };
+    if ((m = s.match(/^alter user\s+[`'"]?(\w+)[`'"]?(?:@\S+)?\s+(?:with\s+)?(?:password|identified by)\s+'([^']*)'/i))) { if (d.users[m[1]]) d.users[m[1]].password = m[2]; else return { error: my ? `ERROR 1396 (HY000): Operation ALTER USER failed for '${m[1]}'` : `ERROR:  role "${m[1]}" does not exist` }; return { msg: my ? 'Query OK, 0 rows affected (0.01 sec)' : 'ALTER ROLE', dirty: true }; }
+    if ((m = s.match(/^create user\s+[`'"]?(\w+)[`'"]?(?:@\S+)?\s+(?:with\s+)?(?:password|identified by)\s+'([^']*)'/i))) { d.users[m[1]] = { password: m[2] }; return { msg: my ? 'Query OK, 0 rows affected (0.01 sec)' : 'CREATE ROLE', dirty: true }; }
     if ((m = s.match(/^create user /i)) || /^grant /i.test(s) || /^alter user /i.test(s) || /^flush privileges$/i.test(s)) return { msg: my ? 'Query OK, 0 rows affected (0.01 sec)' : s.split(' ').slice(0, 2).join(' ').toUpperCase() };
     return { error: my ? `ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '${sql.slice(0, 40)}' at line 1` : `ERROR:  syntax error at or near "${sql.split(/\s+/)[0]}"\nLINE 1: ${sql}\n        ^` };
   }

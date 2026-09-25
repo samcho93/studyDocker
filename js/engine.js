@@ -386,6 +386,18 @@
       if (net) c.networks[net.name] = { ip: '', aliases: (o.aliases || []).slice(), mac: '02:42:' + U.hex(8).match(/../g).join(':'), id: net.id };
       if (c.healthcheck) c.health = { status: 'starting', failingStreak: 0, log: [] };
       Object.defineProperty(c, 'kindCache', { value: img.kind, enumerable: false, writable: true });
+      // 비어 있는 볼륨을 이미지의 기존 내용이 있는 경로에 붙이면, 그 내용을 볼륨으로 복사 (Docker 동작)
+      mounts.forEach(m => {
+        if (m.type !== 'volume') return;
+        const v = this.volume(m.source);
+        if (!v || Object.keys((v.fs && v.fs.files) || {}).length) return;
+        const pre = m.target.replace(/\/$/, '') + '/';
+        const files = (img.fs && img.fs.files) || {};
+        const hit = Object.keys(files).filter(f => f.startsWith(pre));
+        if (!hit.length) return;
+        const vfs = this.volFS(v);
+        hit.forEach(f => vfs.write('/' + f.slice(pre.length), files[f]));
+      });
       this.s.containers.push(c);
       this.event('container', 'create', c);
       this.changed('container');
@@ -475,6 +487,7 @@
       c.state.status = 'running'; c.state.running = true; c.state.paused = false; c.state.restarting = false; c.state.oomKilled = false;
       if (!opts.resume) { c.state.startedAt = Date.now(); c.state.exitCode = 0; c.state.error = ''; }
       c.state.pid = 1000 + (Math.random() * 30000 | 0);
+      if (!opts.resume && c._tmp) Object.keys(c._tmp).forEach(k => { c._tmp[k] = new VFS.FS(); });
       if (c.healthcheck) { c.health = c.health && opts.resume ? c.health : { status: 'starting', failingStreak: 0, log: [] }; this._healthLoop(c, p); }
       const io = {
         out: s => this.log(c, s, 'stdout'),

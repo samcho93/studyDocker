@@ -25,6 +25,7 @@
       const three = src.substr(i, 4);
       if (three === '2>&1') { toks.push({ op: '2>&1' }); i += 4; continue; }
       const two = src.substr(i, 2);
+      if (src.substr(i, 3) === '>&2' || src.substr(i, 4) === '1>&2') { toks.push({ op: '>&2' }); i += src[i] === '1' ? 4 : 3; continue; }
       if (['&&', '||', '>>', '2>', '&>'].includes(two)) {
         if (two === '2>' && src[i + 2] === '>') { toks.push({ op: '2>>' }); i += 3; continue; }
         toks.push({ op: two }); i += 2; continue;
@@ -172,7 +173,7 @@
             p++; const tg = peek(); if (!tg || !tg.w) throw new SyntaxError('syntax error near unexpected token `newline\'');
             redirs.push({ op: q.op, target: tg.w }); p++; continue;
           }
-          if (q.op === '2>&1') { redirs.push({ op: '2>&1' }); p++; continue; }
+          if (q.op === '2>&1' || q.op === '>&2') { redirs.push({ op: q.op }); p++; continue; }
           break;
         }
         if (stop && !words.length && !q.quoted && stop.includes(q.raw)) break;
@@ -372,6 +373,7 @@
       const writes = [];
       for (const r of node.redirs) {
         if (r.op === '2>&1') { err = t => out(t); continue; }
+        if (r.op === '>&2') { out = t => err(t); continue; }
         const target = (await this.expandWord(r.target, io)).join(' ');
         const p = this.abs(target);
         if (r.op === '<') {
@@ -569,7 +571,8 @@
       for (const a of rest.slice(0, -1)) {
         const src = c.sh.abs(a); const st = c.sh.fs.stat(src);
         if (!st) { c.err(`cp: cannot stat '${a}': No such file or directory\n`); return 1; }
-        const target = c.sh.fs.stat(dst) === 'dir' ? (dst === '/' ? '' : dst) + '/' + base(src) : dst;
+        const dotSrc = /\/\.$/.test(a) || a === '.';
+        const target = c.sh.fs.stat(dst) === 'dir' && !dotSrc ? (dst === '/' ? '' : dst) + '/' + base(src) : dst;
         if (st === 'dir') {
           if (!f.r && !f.R && !f.a) { c.err(`cp: -r not specified; omitting directory '${a}'\n`); return 1; }
           c.sh.fs.mkdir(target);
@@ -609,6 +612,7 @@
       const lines = src.split('\n'); if (lines[lines.length - 1] === '') lines.pop();
       const hit = lines.filter(l => f.v ? !re.test(l) : re.test(l));
       if (f.c) { c.out(hit.length + '\n'); return hit.length ? 0 : 1; }
+      if (f.o && !f.q) { hit.forEach(l => (l.match(new RegExp(re.source, 'g' + re.flags)) || []).filter(Boolean).forEach(m => c.out(m + '\n'))); return hit.length ? 0 : 1; }
       if (!f.q) hit.forEach(l => c.out((c.io.piped || f.v ? l : l.replace(re, m => `\x1b[1;31m${m}\x1b[0m`)) + '\n'));
       return hit.length ? 0 : 1;
     },
@@ -669,6 +673,44 @@
       rec(root, '');
       c.out(`\n${nd} director${nd === 1 ? 'y' : 'ies'}, ${nf} file${nf === 1 ? '' : 's'}\n`);
     },
+    tar(c) {
+      // tar c/x/t [z][v] f 파일 [-C 디렉터리] [경로…]  (내용은 JSON 으로 흉내)
+      const a = c.args.slice();
+      let mode = '', file = null, dir = c.sh.cwd, verbose = false;
+      const rest = [];
+      for (let i = 0; i < a.length; i++) {
+        const x = a[i];
+        if (x === '-C') { dir = c.sh.abs(a[++i]); continue; }
+        if (/^-?[cxtzvfjJ]+$/.test(x) && !mode) {
+          const s = x.replace(/^-/, '');
+          mode = (s.match(/[cxt]/) || [''])[0]; verbose = s.includes('v');
+          if (s.includes('f')) file = a[++i];
+          continue;
+        }
+        if (x === '-f') { file = a[++i]; continue; }
+        rest.push(x);
+      }
+      if (!mode || !file) { c.err('tar: You must specify one of the \'-Acdtrux\' options\n'); return 2; }
+      const fp = c.sh.abs(file);
+      if (mode === 'c') {
+        const out = {};
+        (rest.length ? rest : ['.']).forEach(r => {
+          const p = VFS.norm(r, dir);
+          const st = c.sh.fs.stat(p);
+          if (!st) { c.err(`tar: ${r}: Cannot stat: No such file or directory\n`); return; }
+          if (st === 'file') out[r.replace(/^\.\//, '')] = c.sh.fs.read(p);
+          else { const w = c.sh.fs.walk(p); Object.keys(w).forEach(k => { out[(r === '.' ? '' : r.replace(/\/$/, '') + '/') + k] = w[k]; }); }
+        });
+        if (verbose) Object.keys(out).forEach(k => c.out(k + '\n'));
+        try { c.sh.fs.write(fp, 'TAR ' + JSON.stringify(out)); } catch (e) { c.err(`tar: ${file}: Cannot open: ${e.message}\n`); return 2; }
+        return 0;
+      }
+      const s = c.sh.fs.read(fp);
+      if (s == null) { c.err(`tar: ${file}: Cannot open: No such file or directory\n`); return 2; }
+      let data = {}; try { data = JSON.parse(s.replace(/^TAR /, '')); } catch (_) { c.err('tar: This does not look like a tar archive\n'); return 2; }
+      Object.keys(data).forEach(k => { if (mode === 't' || verbose) c.out(k + '\n'); if (mode === 'x') c.sh.fs.write(VFS.norm(k, dir), data[k]); });
+      return 0;
+    },
     jobs(c) { c.sh.jobs.forEach(j => c.out(`[${j.n}]${j.done ? '  Done   ' : '+ Running'}                 ${j.cmd}\n`)); },
     uname(c) {
       const k = c.sh.kernel || 'Linux';
@@ -686,10 +728,12 @@
   core['.'] = core.source;
 
   function headTail(c, head) {
-    let n = 10; const files = [];
+    let n = 10, bytes = null; const files = [];
     for (let i = 0; i < c.args.length; i++) {
       const a = c.args[i];
-      if (a === '-n') n = +c.args[++i];
+      if (a === '-c') bytes = +c.args[++i];
+      else if (/^-c\d+$/.test(a)) bytes = +a.slice(2);
+      else if (a === '-n') n = +c.args[++i];
       else if (/^-\d+$/.test(a)) n = +a.slice(1);
       else if (/^-n\d+$/.test(a)) n = +a.slice(2);
       else if (a === '-f') {}
@@ -697,6 +741,7 @@
     }
     let s = files.length ? c.sh.fs.read(c.sh.abs(files[0])) : c.stdin || '';
     if (s == null) { c.err(`${head ? 'head' : 'tail'}: cannot open '${files[0]}' for reading: No such file or directory\n`); return 1; }
+    if (bytes != null) { c.out(head ? s.slice(0, bytes) : s.slice(-bytes)); return 0; }
     const lines = s.split('\n'); if (lines[lines.length - 1] === '') lines.pop();
     const pick = head ? lines.slice(0, n) : lines.slice(Math.max(0, lines.length - n));
     c.out(pick.join('\n') + (pick.length ? '\n' : ''));

@@ -7,15 +7,24 @@
 (function () {
   'use strict';
   const { norm, parent, base } = VFS;
-  const WRAP = ['docker-entrypoint.sh', 'entrypoint.sh', '/docker-entrypoint.sh', '/entrypoint.sh', '/usr/local/bin/docker-entrypoint.sh', 'docker-php-entrypoint', 'tini', '/sbin/tini', '/usr/bin/tini', 'dumb-init', '/usr/bin/dumb-init', '/run.sh'];
+  const WRAP = ['docker-entrypoint.sh', 'entrypoint.sh', '/docker-entrypoint.sh', '/entrypoint.sh', '/usr/local/bin/docker-entrypoint.sh', 'docker-php-entrypoint', 'tini', '/sbin/tini', '/usr/bin/tini', 'dumb-init', '/usr/bin/dumb-init'];
   const SHELLS = ['sh', 'bash', 'ash', 'zsh', 'dash'];
   const MB = 1024 * 1024;
   const MEM = { nginx: 7 * MB, httpd: 26 * MB, redis: 4 * MB, postgres: 38 * MB, mysql: 390 * MB, mariadb: 95 * MB, mongo: 165 * MB, wordpress: 98 * MB, python: 34 * MB, node: 48 * MB, whoami: 3 * MB, registry: 12 * MB, shell: 0.8 * MB, java: 230 * MB, go: 7 * MB, web: 70 * MB, adminer: 20 * MB, hello: 0.2 * MB, stress: 1 * MB };
 
-  function argvOf(c) { return (c.entrypoint || []).concat(c.cmd || []); }
+  function argvOf(c) {
+    const a = (c.entrypoint || []).concat(c.cmd || []);
+    const D = window.Docker && Docker.engine; const img = D && D.img(c);
+    const k = img && img.kind;
+    a.defaultExe = { curl: 'curl', redis: 'redis-server', postgres: 'postgres', mysql: 'mysqld', node: 'node', mongo: 'mongod' }[k] || null;
+    return a;
+  }
   function strip(argv) {
     let a = argv.slice();
-    while (a.length && WRAP.includes(a[0])) { a.shift(); if (a[0] === '--') a.shift(); }
+    let wrapped = false;
+    while (a.length && WRAP.includes(a[0])) { a.shift(); wrapped = true; if (a[0] === '--') a.shift(); }
+    // docker-entrypoint.sh 관례: 첫 인자가 - 로 시작하면 기본 프로그램을 앞에 붙임
+    if (wrapped && a[0] && a[0].startsWith('-') && argv.defaultExe) a.unshift(argv.defaultExe);
     return a;
   }
   function exeName(a) { return base(a[0] || ''); }
@@ -55,6 +64,8 @@
     if (engine.hasTool(c, b)) return true;
     if (['python', 'python3'].includes(b)) return engine.hasTool(c, 'python3') || engine.hasTool(c, 'python');
     if (CMDS[b] && CMDS[b].always) return true;
+    if (CMDS[b] && CMDS[b].tool && engine.hasTool(c, CMDS[b].tool)) return true;
+    if (['tar', 'find', 'stat', 'getent', 'df', 'mount', 'uptime', 'kill', 'chmod', 'chown'].includes(b)) return true;
     // PATH 에서 찾기 (/usr/local/bin 등에 복사된 파일)
     const f = fs || engine.containerFS(c);
     return ['/usr/local/bin/', '/usr/bin/', '/bin/', '/usr/local/sbin/'].some(d => f.stat(d + b) === 'file');
@@ -70,7 +81,8 @@
     }
     // USER 가 passwd 에 있는지
     const u = (c.user || '').split(':')[0];
-    if (u && !/^\d+$/.test(u) && u !== 'root') {
+    const imgUser = ((engine.img(c) || {}).config || {}).User || '';
+    if (u && !/^\d+$/.test(u) && u !== 'root' && u !== imgUser.split(':')[0]) {
       const pw = engine.containerFS(c).read('/etc/passwd') || '';
       if (!pw.split('\n').some(l => l.split(':')[0] === u)) return { msg: `failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to find user ${u}: no matching entries in passwd file: unknown`, code: 126 };
     }
@@ -262,8 +274,8 @@
     if (exe === 'apache2-foreground') return img.kind === 'wordpress' ? Servers.wordpress(rt) : Servers.httpd(rt);
     if (exe === 'php' && img.kind === 'adminer') return Servers.adminer(rt);
     if (exe === 'config.yml' || exe === 'registry') return Servers.registry(rt);
-    if (exe === 'whoami') return Servers.whoami(rt);
-    if (img.kind === 'web' && ['prometheus', 'portainer', 'grafana-server'].includes(exe) || (img.kind === 'web' && !argv.length)) return Servers.web(rt);
+    if (exe === 'whoami' && img.kind === 'whoami') return Servers.whoami(rt);
+    if (img.kind === 'web' && ['prometheus', 'portainer', 'grafana-server', 'run.sh'].includes(exe) || (img.kind === 'web' && !argv.length)) return Servers.web(rt);
     if (exe === 'stress') return stress(rt);
     // 앱 실행
     const app = await appRun(rt);
@@ -861,6 +873,7 @@ For more examples and ideas, visit:
       if (fail && st >= 400) { if (!silent || showErr) c.err(`curl: (22) The requested URL returned error: ${st}\n`); return 22; }
       if (head) { c.out(hdr); return 0; }
       const body = (inc ? hdr : '') + (r.body || '');
+      if (out === '/dev/null') return 0;
       if (out && out !== '-') { const p = c.sh.abs(out === '__remote' ? (url.split('/').pop() || 'index.html') : out); try { c.sh.fs.write(p, r.body || ''); } catch (e) { c.err(`curl: (23) Failure writing output to destination\n`); return 23; } if (!silent) c.err(`  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n100  ${String((r.body || '').length).padStart(4)}  100  ${String((r.body || '').length).padStart(4)}    0     0   152k      0 --:--:-- --:--:-- --:--:--  152k\n`); return 0; }
       c.out(body);
       return 0;

@@ -386,7 +386,8 @@
 
     /* ================================================================ 미션 */
     initMissions() { $('#paneMissions').innerHTML = `<div class="missions" id="missions"></div>`; this.renderMissions(); },
-    setMissions(key, list, title) {
+    setMissions(key, list, title, files) {
+      this.missionFiles = files || null;
       this.missionKey = key;
       this.missions = list || [];
       this.missionTitle = title || '';
@@ -442,7 +443,7 @@
       $$('[data-hint]', box).forEach(b => b.onclick = () => $('#mh' + b.dataset.hint).classList.toggle('hidden'));
       $$('[data-ans]', box).forEach(b => b.onclick = () => $('#ma' + b.dataset.ans).classList.toggle('hidden'));
       $$('[data-runans]', box).forEach(b => b.onclick = () => { const m = list[+b.dataset.runans]; this.run(Array.isArray(m.answer) ? m.answer : String(m.answer).split('\n')); });
-      $$('[data-setup]', box).forEach(b => b.onclick = async () => { const m = list[+b.dataset.setup]; App.toast('⚙️ 실습 상황을 만드는 중…'); await this.run(m.setup); App.toast('상황이 준비되었습니다. 문제를 찾아 해결해 보세요!'); });
+      $$('[data-setup]', box).forEach(b => b.onclick = async () => { const m = list[+b.dataset.setup]; if (m.files && this.missionFiles && this.missionFiles[m.files]) Host.writeFiles(this.missionFiles[m.files]); App.toast('⚙️ 실습 상황을 만드는 중…'); await this.run(m.setup); App.toast('상황이 준비되었습니다. 문제를 찾아 해결해 보세요!'); });
       const r = $('#mReset'); if (r) r.onclick = () => { delete this.done[this.missionKey]; U.store.set('missions', this.done); this.renderMissions(); this.checkSoon(); };
     },
 
