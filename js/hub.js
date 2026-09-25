@@ -10,8 +10,8 @@
   const OS = {
     debian: { name: 'Debian GNU/Linux 12 (bookworm)', id: 'debian', ver: '12', size: 74.8 * MB, sh: ['bash', 'sh'], pm: 'apt', tools: ['bash'] },
     'debian-slim': { name: 'Debian GNU/Linux 12 (bookworm)', id: 'debian', ver: '12', size: 28.2 * MB, sh: ['bash', 'sh'], pm: 'apt', tools: ['bash'] },
-    ubuntu: { name: 'Ubuntu 24.04.1 LTS', id: 'ubuntu', ver: '24.04', size: 78.1 * MB, sh: ['bash', 'sh'], pm: 'apt', tools: ['bash', 'ps'] },
-    ubuntu22: { name: 'Ubuntu 22.04.5 LTS', id: 'ubuntu', ver: '22.04', size: 77.9 * MB, sh: ['bash', 'sh'], pm: 'apt', tools: ['bash', 'ps'] },
+    ubuntu: { name: 'Ubuntu 24.04.1 LTS', id: 'ubuntu', ver: '24.04', size: 78.1 * MB, sh: ['bash', 'sh'], pm: 'apt', tools: ['bash'] },
+    ubuntu22: { name: 'Ubuntu 22.04.5 LTS', id: 'ubuntu', ver: '22.04', size: 77.9 * MB, sh: ['bash', 'sh'], pm: 'apt', tools: ['bash'] },
     alpine: { name: 'Alpine Linux v3.20', id: 'alpine', ver: '3.20.3', size: 7.8 * MB, sh: ['sh', 'ash'], pm: 'apk', tools: ['ping', 'wget', 'nslookup', 'ip', 'ps', 'top', 'vi', 'free'] },
     busybox: { name: 'BusyBox', id: 'busybox', ver: '1.37', size: 4.26 * MB, sh: ['sh'], pm: null, tools: ['ping', 'wget', 'nslookup', 'ip', 'ps', 'top', 'vi', 'free', 'httpd'] },
     distroless: { name: 'Debian GNU/Linux 12 (bookworm)', id: 'debian', ver: '12', size: 2.0 * MB, sh: [], pm: null, tools: [] },
@@ -358,7 +358,7 @@ Commercial support is available at
         python: ['set -eux; apt-get update; apt-get install -y --no-install-recommends libbluetooth-dev tk-dev uuid-dev …', 'set -eux; wget -O python.tar.xz "https://www.python.org/ftp/python/…"; ./configure …; make -j "$(nproc)" …', 'set -eux; for src in idle3 pip3 pydoc3 python3 python3-config; do …'],
         node: ['groupadd --gid 1000 node && useradd --uid 1000 --gid node --shell /bin/bash --create-home node', 'ARCH= && dpkgArch="$(dpkg --print-architecture)" && curl -fsSLO --compressed "https://nodejs.org/dist/v$NODE_VERSION/…"', 'set -ex && for key in … ; do gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "$key"'],
       }[def.kind] || [`set -eux; apt-get update; apt-get install -y ${repo.replace(/\W/g, '')} …`, 'COPY docker-entrypoint.sh /usr/local/bin/ # buildkit', 'RUN /bin/sh -c mkdir -p /data # buildkit'];
-      parts.forEach((pc, i) => layers.push({ id: U.hash('l:' + repo + ':' + tag + ':' + i), size: Math.round(rest * pc), created_by: 'RUN /bin/sh -c ' + (what[i] || what[0]) + ' # buildkit' }));
+      parts.forEach((pc, i) => layers.push({ id: U.hash('l:' + repo + ':' + tag + ':' + i), size: Math.round(rest * pc), created_by: (/^(COPY|RUN) /.test(what[i] || what[0]) ? '' : 'RUN /bin/sh -c ') + (what[i] || what[0]) + ' # buildkit' }));
     }
     const cfg = JSON.parse(JSON.stringify(def.cfg || {}));
     cfg.Env = ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'].concat((cfg.Env || []).filter(e => !/^PATH=/.test(e)), (def.cfg.Env || []).filter(e => /^PATH=/.test(e)));

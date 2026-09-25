@@ -329,6 +329,7 @@ alpine: Pulling from library/redis
 51abee3c58a2: Already exists      <span class="cm">← 이미 있는 레이어! 내려받지 않음</span>
 d9969b95a745: Pull complete
 d8969a02090e: Pull complete</code></pre>
+<p>(2절에서 <code>nginx:alpine</code> 을 받았다면 <code>alpine</code> 을 받을 때부터 벌써 Already exists 가 뜹니다. 같은 alpine 레이어를 쓰니까요!)</p>
 <p><b>"Already exists"</b> 는 "그 레이어는 이미 내 PC 에 있으니 건너뛴다"는 뜻입니다. 레이어 공유 덕분에 다음 세 가지 이득이 생깁니다.</p>
 <div class="stats">
 <div class="stat teal"><b>⬇ 빠른 pull</b><span>이미 있는 층은 건너뜀</span></div>
@@ -394,11 +395,11 @@ docker history nginx:alpine</code></pre>
 <h4>--format 으로 필요한 칸만 뽑기</h4>
 <p>JSON 을 다 읽을 필요 없이 <code>--format</code>(짧게 <code>-f</code>) 에 <b>Go 템플릿</b> <code>{{.칸이름}}</code> 을 적으면 그 값만 나옵니다.</p>
 <pre class="code" data-lang="bash" data-run="sh"><code>docker image inspect --format '{{json .Config.Cmd}}' nginx
-docker image inspect --format '{{.Config.ExposedPorts}}' nginx
+docker image inspect --format '{{json .Config.ExposedPorts}}' nginx
 docker image inspect --format '{{json .Config.Env}}' nginx
 docker image inspect -f '{{.Architecture}} {{.Os}}' nginx</code></pre>
 <pre class="code out" data-lang="출력"><code>["nginx","-g","daemon off;"]
-map[80/tcp:{}]
+{"80/tcp":{}}
 ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","NGINX_VERSION=1.27.2"]
 amd64 linux</code></pre>
 <div class="box practice"><div class="box-t">🧪 해 보기</div>
@@ -449,7 +450,7 @@ Deleted: sha256:15db9127c3b35049e1ee6e85e493fcef3605b8446c91e3be9f9c425102b519c9
 <p>이미지로 만든 컨테이너가 남아 있으면(실행 중이든 멈췄든) 그 이미지는 지울 수 없습니다. 붕어빵이 아직 진열대에 있는데 틀을 버릴 수는 없는 셈입니다.</p>
 <pre class="code" data-lang="bash" data-run="sh"><code>docker run -d --name web1 nginx:1.27
 docker rmi nginx:1.27</code></pre>
-<pre class="code out" data-lang="출력"><code>Error response from daemon: conflict: unable to remove repository reference "nginx:1.27" (must be forced) - container 3f9c1a0b7d2e is using its referenced image 6685dd14720b</code></pre>
+<pre class="code out" data-lang="출력"><code>Error response from daemon: conflict: unable to remove repository reference "nginx:1.27" (must be forced) - container 5588a0dcc676 is using its referenced image 6685dd14720b</code></pre>
 <p>올바른 순서는 <b>컨테이너를 먼저 지우고 → 이미지를 지우는 것</b>입니다 (<code>docker rm -f</code> 는 3장에서 자세히).</p>
 <pre class="code" data-lang="bash" data-run="sh"><code>docker rm -f web1
 docker rmi nginx:1.27</code></pre>
@@ -474,7 +475,8 @@ docker images</code></pre>
 <pre class="code out" data-lang="출력"><code>REPOSITORY   TAG      IMAGE ID       CREATED       SIZE
 nginx        1.27     6685dd14720b   2 weeks ago   192MB
 nginx        latest   6685dd14720b   2 weeks ago   192MB
-&lt;none&gt;       &lt;none&gt;   df66cb378c02   7 days ago    192MB     <span class="cm">← 댕글링!</span></code></pre>
+&lt;none&gt;       &lt;none&gt;   df66cb378c02   7 days ago    192MB     <span class="cm">← 댕글링!</span>
+...</code></pre>
 <p>댕글링 이미지만 골라 보고, 한 번에 치워 봅시다. <code>docker image prune</code> 은 확인을 묻는데, <code>y</code> 를 누르면 지웁니다 (<code>-f</code> 를 붙이면 묻지 않음).</p>
 <pre class="code" data-lang="bash" data-run="sh"><code>docker images -f dangling=true
 docker image prune -f
@@ -537,7 +539,7 @@ python   Python is an interpreted, interactive, objec…   9800    [OK]</code></
 <h4>④ 크기 — alpine 과 slim</h4>
 <p>같은 소프트웨어도 <b>무엇을 바탕으로 만들었느냐</b>에 따라 크기가 몇 배씩 다릅니다. 아래 위젯의 "⬇ 모두 pull" 을 눌러 직접 비교해 보세요.</p>
 {{widget:sizes|list=nginx,nginx:alpine,python:3.12,python:3.12-slim,python:3.12-alpine|title=같은 소프트웨어, 다른 크기}}
-<div class="three">
+<div class="tbl-wrap">
 <table class="tbl">
 <tr><th>변형</th><th>바탕</th><th>장점</th><th>주의할 점</th></tr>
 <tr><td><b>(기본)</b> <code>python:3.12</code></td><td>Debian + 빌드 도구 잔뜩</td><td>뭐든 다 있음(gcc · git · curl)</td><td>크다 (실습 환경 기준 약 1GB)</td></tr>

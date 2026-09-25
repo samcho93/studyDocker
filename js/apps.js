@@ -787,7 +787,7 @@ For more examples and ideas, visit:
     const rows = [[1, ct.user || 'root', main]];
     if (eng.kind(ct) === 'nginx') rows.push([29, 'nginx', 'nginx: worker process'], [30, 'nginx', 'nginx: worker process']);
     if (eng.kind(ct) === 'postgres') ['checkpointer', 'background writer', 'walwriter', 'autovacuum launcher', 'logical replication launcher'].forEach((n, i) => rows.push([27 + i, 'postgres', 'postgres: ' + n]));
-    (c.sh.execs || []).forEach((x, i) => rows.push([40 + i * 7, c.sh.user, x]));
+    (c.sh.execs || []).filter(x => !/^ps\b/.test(x)).forEach((x, i) => rows.push([40 + i * 7, c.sh.user, x]));
     rows.push([90 + (Math.random() * 20 | 0), c.sh.user, 'ps ' + c.args.join(' ')]);
     if (alp) { c.out('PID   USER     TIME  COMMAND\n' + rows.map(r => `${String(r[0]).padStart(5)} ${U.pad(r[1], 8)}  0:00 ${r[2]}`).join('\n') + '\n'); return; }
     if (c.args.some(a => /a|e|x/.test(a))) c.out('USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n' + rows.map(r => `${U.pad(r[1], 8)} ${String(r[0]).padStart(7)}  0.0  0.1  11404  7424 ?        Ss   ${new Date().toTimeString().slice(0, 5)}   0:00 ${r[2]}`).join('\n') + '\n');

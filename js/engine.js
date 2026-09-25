@@ -157,7 +157,7 @@
       if (same) { if (!same.repoTags.includes(key)) same.repoTags.push(key); }
       else { img.repoTags = [key]; img.pulledAt = Date.now(); this.s.images.push(img); }
       if (existing && !existing.repoTags.length) existing.dangling = true;
-      if (!q) io.out(`Digest: sha256:${(img.repoDigests[0] || '').split(':').pop()}\nStatus: Downloaded newer image for ${key}\n${r.repo.includes('/') ? '' : 'docker.io/library/'}${key}\n`);
+      if (!q) io.out(`Digest: sha256:${(img.repoDigests[0] || '').split(':').pop()}\nStatus: Downloaded newer image for ${key}\n${opts.implicit ? '' : (r.repo.includes('/') ? '' : 'docker.io/library/') + key + '\n'}`);
       this.event('image', 'pull', img);
       this.changed('image');
       return same || img;
@@ -185,6 +185,7 @@
       const key = r.repo + ':' + r.tag;
       const byTag = img.repoTags.includes(key);
       const out = [];
+      if (!byTag && img.repoTags.length > 1 && !force) throw new Error(`conflict: unable to delete ${img.id.slice(0, 12)} (must be forced) - image is referenced in multiple repositories`);
       if (byTag && img.repoTags.length > 1) {
         img.repoTags = img.repoTags.filter(t => t !== key);
         out.push(`Untagged: ${key}`);
@@ -558,8 +559,10 @@
     kill(c, signal) {
       if (c.state.status !== 'running' && c.state.status !== 'paused') throw new Error(`cannot kill container: ${c.name}: container ${c.id} is not running`);
       const p = this.proc[c.id];
-      p.userStop = true; c.manualStop = true;
       const sig = String(signal || 'KILL').replace(/^SIG/, '');
+      // PID 1 은 처리기가 없는 신호를 무시한다 (--init 이 없으면)
+      if (!/^(KILL|9)$/.test(sig) && !Apps.graceful(this, c) && !c.hostConfig.init) return;
+      p.userStop = true; c.manualStop = true;
       p.forcedCode = sig === 'KILL' || sig === '9' ? 137 : sig === 'INT' ? 130 : 143;
       if (Apps.graceful(this, c) && sig !== 'KILL' && sig !== '9') p.forcedCode = 0;
       p.ctl.abort();

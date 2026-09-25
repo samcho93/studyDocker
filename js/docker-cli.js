@@ -185,7 +185,7 @@
       if (/^"(.*)"$/.test(path)) return path.slice(1, -1);
       return undefined;
     };
-    const fmt = v => v === undefined ? '<no value>' : v === null ? '<nil>' : typeof v === 'object' ? (Array.isArray(v) ? '[' + v.map(fmt).join(' ') + ']' : 'map[' + Object.keys(v).map(k => k + ':' + fmt(v[k])).join(' ') + ']') : String(v);
+    const fmt = v => v === undefined ? '<no value>' : v === null ? '<nil>' : typeof v === 'object' ? (Array.isArray(v) ? '[' + v.map(fmt).join(' ') + ']' : !Object.keys(v).length ? '{}' : 'map[' + Object.keys(v).map(k => k + ':' + fmt(v[k])).join(' ') + ']') : String(v);
     const run = (i, ctx, stopAtEnd) => {
       let s = '';
       while (i < toks.length) {
@@ -203,7 +203,8 @@
           i = inner.i; continue;
         }
         if (/^json\s/.test(a)) { s += JSON.stringify(get(a.slice(5), ctx)); i++; continue; }
-        if (/^index\s/.test(a)) { const mm = a.match(/^index\s+(\S+)\s+"([^"]*)"/); const v = mm ? (get(mm[1], ctx) || {})[mm[2]] : undefined; s += fmt(v); i++; continue; }
+        if (/^index\s/.test(a)) { const mm = a.match(/^index\s+(\S+)\s+(?:"([^"]*)"|(\d+))/); const v = mm ? (get(mm[1], ctx) || {})[mm[2] != null ? mm[2] : +mm[3]] : undefined; s += fmt(v); i++; continue; }
+        if (/^len\s/.test(a)) { const v = get(a.slice(4), ctx); s += v == null ? '0' : String(Array.isArray(v) || typeof v === 'string' ? v.length : Object.keys(v).length); i++; continue; }
         if (/^println/.test(a)) { s += fmt(get(a.slice(8) || '.', ctx)) + '\n'; i++; continue; }
         if (/^(upper|lower)\s/.test(a)) { const v = fmt(get(a.split(/\s+/)[1], ctx)); s += a.startsWith('upper') ? v.toUpperCase() : v.toLowerCase(); i++; continue; }
         if (a === 'table') { i++; continue; }
@@ -783,7 +784,7 @@ Server:
     const { o, pos } = parseOpts(args, { 'q|quiet': 'bool', 'a|all-tags': 'bool', 'platform': 'str' });
     if (!pos.length) { ctx.err('"docker pull" requires exactly 1 argument.\nSee \'docker pull --help\'.\n\nUsage:  docker pull [OPTIONS] NAME[:TAG|@DIGEST]\n\nDownload an image from a registry\n'); return 1; }
     if (/[A-Z]/.test(pos[0])) { ctx.err(`invalid reference format: repository name (library/${pos[0]}) must be lowercase\n`); return 1; }
-    if (!pos[0].includes(':') && !pos[0].includes('@')) ctx.out('Using default tag: latest\n');
+    if (!o.quiet && !pos[0].includes(':') && !pos[0].includes('@')) ctx.out('Using default tag: latest\n');
     const img = await ctx.D.pull(pos[0], ctx.io, { quiet: o.quiet });
     if (o.quiet && img) ctx.out(`docker.io/library/${Hub.resolve(pos[0]).full}\n`);
     return img ? 0 : 1;
